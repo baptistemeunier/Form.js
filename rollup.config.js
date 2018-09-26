@@ -4,7 +4,7 @@ const path = require('path');
 const pkg = require(path.resolve(__dirname, 'package.json'))
 
 module.exports = {
-  input: 'src/js/Pane.js',
+  input: 'src/js/berlioz-form-collection.js',
   external: ['jquery'],
   plugins: [
     babel({
@@ -13,16 +13,16 @@ module.exports = {
   ],
   output: {
     banner: `/*!
-  * jQuery Pane v${pkg.version} (${pkg.homepage})
+  * Berlioz Form JS v${pkg.version} (${pkg.homepage})
   * Copyright 2018 ${pkg.author}
-  * Licensed under MIT (https://github.com/ElGigi/jQueryPane/blob/master/LICENSE)
+  * Licensed under MIT (https://github.com/BerliozFramework/Form.js/blob/master/LICENSE)
   */`,
     format: 'umd',
-    name: 'Pane',
+    name: 'BerliozCollection',
     sourcemap: true,
     globals: {
       jquery: 'jQuery'
     },
-    file: 'dist/js/jquery-pane.js',
+    file: 'dist/js/berlioz-form-collection.js',
   }
 }
