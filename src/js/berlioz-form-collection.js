@@ -30,7 +30,7 @@ const BerliozCollection = (($) => {
 
             // Update the indexes on each element
             let collectionName = collection.data('collection');
-            let collectionNameEscaped = this.escapeRegExp(collection.data('collection'));
+            let collectionNameEscaped = Collection._escapeRegExp(collection.data('collection'));
             let collectionId = collection.attr('id');
 
             $('[data-collection-key]', collection).each(function(index) {
@@ -55,7 +55,7 @@ const BerliozCollection = (($) => {
             });
         }
 
-        escapeRegExp(string) {
+        static _escapeRegExp(string) {
             return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
         }
 
