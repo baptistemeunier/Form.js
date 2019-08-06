@@ -1,6 +1,34 @@
 import $ from 'jquery'
 
 const BerliozCollection = (($) => {
+  /**
+   * Events.
+   */
+  const Event = {
+    ADD: 'add.collection.berlioz',
+    ADDED: 'added.collection.berlioz',
+    DELETE: 'delete.collection.berlioz',
+    DELETED: 'deleted.collection.berlioz',
+    MIN: 'min.collection.berlioz',
+    MAX: 'max.collection.berlioz',
+    // Selectors
+    CLICK_ADD: 'click.add.collection.berlioz',
+    CLICK_DELETE: 'click.delete.collection.berlioz'
+  }
+
+  /**
+   * Selectors.
+   */
+  const Selector = {
+    DATA_ADD: '[data-add="collection"]',
+    DATA_DELETE: '[data-delete="collection"]',
+    COLLECTION: '[data-collection]',
+    COLLECTION_KEY: '[data-collection-key]'
+  }
+
+  /**
+   * Collection class.
+   */
   class Collection {
     constructor(target) {
       this.target = $(target)
@@ -8,12 +36,34 @@ const BerliozCollection = (($) => {
 
     addElement() {
       // Count the total element count in the collection
-      let newCount = this.target.find('[data-collection-key]').length
+      let newCount = this._nbElements()
       let newElement = $('<div data-collection-key="' + newCount + '"></div>')
       let prototypeString = this.target.data('prototype').replace(/___name___/g, newCount)
 
-      newElement.append($(prototypeString))
-      this.target.append(newElement)
+      // Control maximum
+      if (this._controlMaximum()) {
+        return;
+      }
+
+      // ADD event
+      let eventAdd = $.Event(Event.ADD)
+      this.target.trigger(eventAdd)
+
+      if (!eventAdd.isPropagationStopped()) {
+        newElement.append($(prototypeString))
+        let lastElement = $(Selector.COLLECTION_KEY, this.target).last()
+        if (lastElement.length === 1) {
+          newElement.insertAfter(lastElement)
+        } else {
+          this.target.prepend(newElement)
+        }
+
+        // ADDED event
+        this.target.trigger(Event.ADDED)
+
+        // Control maximum
+        this._controlMaximum()
+      }
     }
 
     deleteElement(element) {
@@ -21,38 +71,84 @@ const BerliozCollection = (($) => {
 
       // If the element doesn't have the key attribute, it may be a child element of the item, so we try to get
       // the item base element from its parents
-      if (!element.data('collection-key')) {
-        element = element.parents('[data-collection-key]')
+      if (typeof element.data('collection-key') === 'undefined') {
+        element = element.parents(Selector.COLLECTION_KEY)
       }
 
-      let collection = $(element.parents('[data-collection]'))
-      element.remove()
+      // If no element found!
+      if (element.length === 0) {
+        return;
+      }
 
-      // Update the indexes on each element
-      let collectionName = collection.data('collection')
-      let collectionNameEscaped = Collection._escapeRegExp(collection.data('collection'))
-      let collectionId = collection.attr('id')
+      // Control minimum
+      if (this._controlMinimum()) {
+        return;
+      }
 
-      $('[data-collection-key]', collection).each(function (index) {
-        $(this).attr('data-collection-key', index)
+      // DELETE event
+      let eventDelete = $.Event(Event.DELETE)
+      this.target.trigger(eventDelete)
 
-        $('input, select, textarea, label', this).each(function () {
-          let idPattern = new RegExp(collectionId + '_\\d+')
-          let namePattern = new RegExp(collectionNameEscaped + '\\[\\d+')
+      if (!eventDelete.isPropagationStopped()) {
+        element.remove()
 
-          if ($(this)[0].hasAttribute('for')) {
-            $(this).attr('for', $(this).attr('for').replace(idPattern, collectionId + '_' + index))
-          }
+        // Update the indexes on each element
+        let collectionName = this.target.data('collection')
+        let collectionNameEscaped = Collection._escapeRegExp(this.target.data('collection'))
+        let collectionId = this.target.attr('id')
 
-          if ($(this)[0].hasAttribute('name')) {
-            $(this).attr('name', $(this).attr('name').replace(namePattern, collectionName + '[' + index))
-          }
-          if ($(this)[0].hasAttribute('id')) {
-            $(this).attr('id', $(this).attr('id').replace(idPattern, collectionId + '_' + index))
-          }
+        $(Selector.COLLECTION_KEY, this.target).each(function (index) {
+          $(this).attr('data-collection-key', index)
+
+          $('input, select, textarea, label', this).each(function () {
+            let idPattern = new RegExp(collectionId + '_\\d+')
+            let namePattern = new RegExp(collectionNameEscaped + '\\[\\d+')
+
+            if ($(this)[0].hasAttribute('for')) {
+              $(this).attr('for', $(this).attr('for').replace(idPattern, collectionId + '_' + index))
+            }
+
+            if ($(this)[0].hasAttribute('name')) {
+              $(this).attr('name', $(this).attr('name').replace(namePattern, collectionName + '[' + index))
+            }
+            if ($(this)[0].hasAttribute('id')) {
+              $(this).attr('id', $(this).attr('id').replace(idPattern, collectionId + '_' + index))
+            }
+          })
         })
 
-      })
+        // DELETED event
+        this.target.trigger(Event.DELETED)
+
+        // Control minimum
+        this._controlMinimum()
+      }
+    }
+
+    _nbElements() {
+      return $(Selector.COLLECTION_KEY, this.target).length
+    }
+
+    _controlMinimum() {
+      let minElements = this.target.data('collectionMin') || 0
+
+      if (minElements >= this._nbElements()) {
+        this.target.trigger(Event.MIN)
+        return true
+      }
+
+      return false
+    }
+
+    _controlMaximum() {
+      let maxElements = this.target.data('collectionMax') || null
+
+      if (maxElements !== null && maxElements <= this._nbElements()) {
+        this.target.trigger(Event.MAX)
+        return true
+      }
+
+      return false
     }
 
     static _escapeRegExp(string) {
@@ -61,16 +157,18 @@ const BerliozCollection = (($) => {
 
     static _jQueryInterface(action, arg1) {
       this.each(function () {
-        if (!(typeof $(this).data('collection-object') === 'object' && $(this).data('collection-object') instanceof Collection)) {
-          $(this).data('collection-object', new Collection(this))
+        let collectionObj = $(this).data('collection-object')
+
+        if (!(typeof collectionObj === 'object' && collectionObj instanceof Collection)) {
+          $(this).data('collection-object', collectionObj = new Collection(this))
         }
 
         switch (action) {
           case 'add':
-            $(this).data('collection-object').addElement()
+            collectionObj.addElement()
             break
           case 'delete':
-            $(this).data('collection-object').deleteElement(arg1)
+            collectionObj.deleteElement(arg1)
             break
         }
       })
@@ -81,6 +179,25 @@ const BerliozCollection = (($) => {
   $.fn.berliozCollection.noConflict = function () {
     return Collection._jQueryInterface
   }
+
+  // Events
+  $(document)
+    .off(Event.CLICK_ADD, Selector.DATA_ADD)
+    .on(Event.CLICK_ADD,
+      Selector.DATA_ADD,
+      (event) => {
+        $(event.currentTarget)
+          .parents(Selector.COLLECTION)
+          .berliozCollection('add')
+      })
+    .off(Event.CLICK_DELETE, Selector.DATA_DELETE)
+    .on(Event.CLICK_DELETE,
+      Selector.DATA_DELETE,
+      (event) => {
+        $(event.currentTarget)
+          .parents(Selector.COLLECTION)
+          .berliozCollection('delete', $(event.currentTarget).parents(Selector.COLLECTION_KEY))
+      })
 })($)
 
 export default BerliozCollection
